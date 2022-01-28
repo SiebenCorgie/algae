@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 algae = {path = "../algae"}
 algae_jit = {path = "../algae_jit"}
+
+[build-dependencies]
+spirv-builder = { git = "https://github.com/EmbarkStudios/rust-gpu" }

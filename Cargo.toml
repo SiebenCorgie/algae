@@ -2,5 +2,6 @@
 members = [
 "crates/algae",
 "crates/algae_jit",
-"crates/vulkan_runner"
+"crates/vulkan_runner",
+"crates/test_shader"
 ]
