@@ -5,10 +5,18 @@
 use std::sync::Arc;
 
 use algae_jit::AlgaeJit;
-use marp::{command_buffer::{CommandBuffer, CommandBufferPool, CommandPool}, sync::{Semaphore, QueueFence}, image::{SwapchainImage, AbstractImage, Image}, ash::vk::{self, Extent2D, PipelineStageFlags}, device::SubmitInfo};
+use marp::{
+    ash::vk::{self, Extent2D, PipelineStageFlags},
+    command_buffer::{CommandBuffer, CommandBufferPool, CommandPool},
+    device::SubmitInfo,
+    image::{AbstractImage, Image, SwapchainImage},
+    sync::{QueueFence, Semaphore},
+};
 use marp_surface_winit::winit::window::Window;
 
-use crate::{vkcontext::MarpContext, pass_renderer::ImagePass, pass_image_to_swapchain::ImgToSwapchain};
+use crate::{
+    pass_image_to_swapchain::ImgToSwapchain, pass_renderer::ImagePass, vkcontext::MarpContext,
+};
 
 pub const LOCAL_SIZE: [u32; 3] = [8, 8, 1];
 
@@ -21,8 +29,7 @@ pub fn dispatch_size(image: &Arc<Image>) -> [u32; 3] {
     ]
 }
 
-
-pub struct PerFrameData{
+pub struct PerFrameData {
     command_buffer: Arc<CommandBuffer>,
 
     copy_finished: Arc<Semaphore>,
@@ -31,17 +38,14 @@ pub struct PerFrameData{
     swapchain_image: Arc<SwapchainImage>,
 }
 
-pub struct FrameBuilder{
+pub struct FrameBuilder {
     frames: Vec<PerFrameData>,
 
     image_pass: ImagePass,
 }
 
-impl FrameBuilder{
-    pub fn new(
-        ctx: &MarpContext,
-        jit: AlgaeJit,
-    ) -> Self{
+impl FrameBuilder {
+    pub fn new(ctx: &MarpContext, jit: AlgaeJit) -> Self {
         let swapchain_images = ctx.swapchain.get_images();
         let num_scimgs = swapchain_images.len();
         let extent = swapchain_images[0].extent();
@@ -50,7 +54,7 @@ impl FrameBuilder{
             ctx.queue.clone(),
             vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
         )
-            .expect("Failed to create command pool");
+        .expect("Failed to create command pool");
 
         let command_buffers = command_pool
             .alloc(num_scimgs, false)
@@ -59,30 +63,23 @@ impl FrameBuilder{
         let frame_infos: Vec<_> = command_buffers
             .into_iter()
             .enumerate()
-            .map(|(idx, cb)| {
-                PerFrameData {
-                    command_buffer: cb,
-                    copy_finished: Semaphore::new(ctx.device.clone()).unwrap(),
-                    in_flight: None,
-                    swapchain_image: swapchain_images[idx].clone(),
-                }
+            .map(|(idx, cb)| PerFrameData {
+                command_buffer: cb,
+                copy_finished: Semaphore::new(ctx.device.clone()).unwrap(),
+                in_flight: None,
+                swapchain_image: swapchain_images[idx].clone(),
             })
             .collect();
 
-        let image_pass = ImagePass::new(
-            jit,
-            ctx.device.clone(),
-            extent,
-            num_scimgs
-        );
-        
+        let image_pass = ImagePass::new(jit, ctx.device.clone(), extent, num_scimgs);
+
         Self {
             image_pass,
             frames: frame_infos,
         }
     }
 
-    fn check_resize(&mut self, ctx: &mut MarpContext, window: &Window){
+    fn check_resize(&mut self, ctx: &mut MarpContext, window: &Window) {
         let extent = if let Ok(caps) = ctx.swapchain.get_suface_capabilities() {
             match caps.current_extent {
                 Extent2D {
@@ -109,22 +106,21 @@ impl FrameBuilder{
         if ctx.frame_extent() != extent {
             #[cfg(feature = "logging")]
             log::info!("Detected window resize!");
-            
+
             //notify marp context
             ctx.resize_frame(extent);
-            //now rebuild self                
+            //now rebuild self
             let mut new_builder = FrameBuilder::new(ctx, self.image_pass.shader_loader.clone());
             core::mem::swap(self, &mut new_builder);
-
         }
     }
 
     fn get_copy_complete_semaphore(&self, slot: usize) -> Arc<Semaphore> {
         self.frames[slot].copy_finished.clone()
     }
-    
+
     ///Renders a new frame and outputs it when ready
-    pub fn render(&mut self, ctx: &mut MarpContext, window: &Window){
+    pub fn render(&mut self, ctx: &mut MarpContext, window: &Window) {
         println!("Check window");
         self.check_resize(ctx, window);
 
@@ -145,7 +141,6 @@ impl FrameBuilder{
             inflight.wait(u64::MAX).unwrap();
         }
 
-
         println!("Record!");
         //Begin copy command buffer
         //Reset command buffer
@@ -158,7 +153,7 @@ impl FrameBuilder{
         command_buffer = self.image_pass.pre(command_buffer, slot);
         command_buffer = self.image_pass.record(command_buffer, slot);
         //Now copy image to swapchain
-        
+
         command_buffer = ImgToSwapchain::record(
             command_buffer,
             self.image_pass.get_final_image(slot).unwrap(),
@@ -169,9 +164,13 @@ impl FrameBuilder{
         command_buffer.end_recording().unwrap();
 
         //Execute the copy tasks and the final "copy to swapchain" task on the present queue
-        let new_inflight = ctx.queue
+        let new_inflight = ctx
+            .queue
             .queue_submit(vec![SubmitInfo::new(
-                vec![(sem_present_finshed, PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)], 
+                vec![(
+                    sem_present_finshed,
+                    PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                )],
                 vec![command_buffer],
                 vec![self.frames[slot].copy_finished.clone()], //Signal execution semaphore
             )])
@@ -180,12 +179,10 @@ impl FrameBuilder{
         //Setup new inflight fence
         self.frames[slot].in_flight = Some(new_inflight);
 
-        
         //Tell swapchain that it can present this frame when we finished rendering
         if let Err(_e) = ctx.swapchain.queue_present(
             ctx.queue.clone(),
-            vec![self
-                 .get_copy_complete_semaphore(submit_image_index as usize)],
+            vec![self.get_copy_complete_semaphore(submit_image_index as usize)],
             submit_image_index,
         ) {
             #[cfg(feature = "logging")]
@@ -193,4 +190,3 @@ impl FrameBuilder{
         }
     }
 }
-

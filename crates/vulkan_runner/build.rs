@@ -1,10 +1,10 @@
-use spirv_builder::{SpirvBuilder, MetadataPrintout};
+use spirv_builder::{MetadataPrintout, SpirvBuilder};
 
-
-fn main(){
+fn main() {
     SpirvBuilder::new("../test_shader", "spirv-unknown-vulkan1.1")
         .print_metadata(MetadataPrintout::Full)
-        .build().expect("Failed to build test shader");
+        .build()
+        .expect("Failed to build test shader");
 
     //copy spirv file into resource folder
     std::fs::copy(

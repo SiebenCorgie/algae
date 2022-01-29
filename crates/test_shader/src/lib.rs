@@ -10,17 +10,16 @@
 // HACK(eddyb) can't easily see warnings otherwise from `spirv-builder` builds.
 #![deny(warnings)]
 
-use spirv_std::glam::{UVec3, Vec3Swizzles, Vec4};
 use spirv_std;
+use spirv_std::glam::{UVec3, Vec3Swizzles, Vec4};
 use spirv_std::Image;
 
 //Note this is needed to compile on cpu
 #[cfg(not(target_arch = "spirv"))]
 use spirv_std::macros::spirv;
 
-
-pub struct PushConst{
-    color: [f32; 4]
+pub struct PushConst {
+    color: [f32; 4],
 }
 
 #[spirv(compute(threads(8, 8, 1)))]
@@ -33,13 +32,13 @@ pub fn main(
         (id.x as f32 / 100.0) % 1.0,
         (id.y as f32 / 100.0) % 1.0,
         (id.z as f32 / 100.0) % 1.0,
-        1.0
+        1.0,
     );
 
     let pcol = Vec4::from(push.color);
 
     let color = color * pcol;
-    
+
     unsafe {
         target_image.write(id.xy(), color);
     }

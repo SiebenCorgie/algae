@@ -19,16 +19,16 @@ use marp::{
     image::{Image, ImageInfo, ImageType, ImageUsage, MipLevel},
     memory::MemoryUsage,
     pipeline::{ComputePipeline, PipelineLayout},
-    shader::{Stage, ShaderModule, AbstractShaderModule},
+    shader::{AbstractShaderModule, ShaderModule, Stage},
 };
 
 use crate::frame_builder::dispatch_size;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
-struct PushConst{
+struct PushConst {
     #[allow(dead_code)]
-    color: [f32; 4]
+    color: [f32; 4],
 }
 
 pub(crate) struct PassData {
@@ -40,26 +40,19 @@ pub(crate) struct PassData {
 pub(crate) struct ImagePass {
     pub(crate) data: Vec<PassData>,
     pipeline: Arc<ComputePipeline>,
-    
+
     pub(crate) shader_loader: AlgaeJit,
     camera: PushConstant<PushConst>,
 }
 
 impl ImagePass {
-    pub fn new(
-        mut jit: AlgaeJit,
-        device: Arc<Device>,
-        extent: Extent2D,
-        num_slots: usize,
-    ) -> Self {
+    pub fn new(mut jit: AlgaeJit, device: Arc<Device>, extent: Extent2D, num_slots: usize) -> Self {
         let descriptor_pool = StdDescriptorPool::new(
             device.clone(),
-            vec![
-                DescriptorPoolSize::builder()
-                    .ty(DescriptorType::STORAGE_IMAGE)
-                    .descriptor_count(num_slots as u32 * 1) //output
-                    .build(),
-            ]
+            vec![DescriptorPoolSize::builder()
+                .ty(DescriptorType::STORAGE_IMAGE)
+                .descriptor_count(num_slots as u32 * 1) //output
+                .build()]
             .as_slice(),
             num_slots as u32,
         )
@@ -111,12 +104,8 @@ impl ImagePass {
         }
 
         //Create initial push constant
-        let camera_const = PushConstant::new(
-            PushConst {
-                color: [1.0; 4]
-            },
-            ShaderStageFlags::COMPUTE,
-        );
+        let camera_const =
+            PushConstant::new(PushConst { color: [1.0; 4] }, ShaderStageFlags::COMPUTE);
 
         //Setup the compute pipeline.
         let pipe_layout = PipelineLayout::new(
@@ -127,10 +116,7 @@ impl ImagePass {
         .unwrap();
 
         let shader = jit.get_module();
-        let shader_module = ShaderModule::new_from_code(
-            device.clone(),
-            shader.to_vec()
-        ).unwrap();
+        let shader_module = ShaderModule::new_from_code(device.clone(), shader.to_vec()).unwrap();
 
         let shader = shader_module.to_stage(Stage::Compute, "main");
 
@@ -215,4 +201,3 @@ impl ImagePass {
         command_buffer
     }
 }
-

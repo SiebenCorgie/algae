@@ -5,11 +5,20 @@
 use std::sync::Arc;
 
 #[cfg(feature = "validation")]
+use marp::miscellaneous::{Debugging, InstanceLayer};
 
-use marp::miscellaneous::{InstanceLayer, Debugging};
-
-use marp::{device::{Device, PhysicalDevice, DeviceBuilder, Queue, QueueFamily}, swapchain::{Swapchain, surface::Surface}, ash::vk::{Extent2D, PhysicalDeviceVulkan12Features, SurfaceFormatKHR, PresentModeKHR}, miscellaneous::{AppInfo, Version, InstanceExtensions, DeviceExtension}, instance::Instance, image::ImageUsage};
-use marp_surface_winit::{winit::{window::Window, event_loop::EventLoop}, WinitSurface};
+use marp::{
+    ash::vk::{Extent2D, PhysicalDeviceVulkan12Features, PresentModeKHR, SurfaceFormatKHR},
+    device::{Device, DeviceBuilder, PhysicalDevice, Queue, QueueFamily},
+    image::ImageUsage,
+    instance::Instance,
+    miscellaneous::{AppInfo, DeviceExtension, InstanceExtensions, Version},
+    swapchain::{surface::Surface, Swapchain},
+};
+use marp_surface_winit::{
+    winit::{event_loop::EventLoop, window::Window},
+    WinitSurface,
+};
 
 #[cfg(all(unix, not(target_os = "android")))]
 ///Checks if the event loop is on wayland if on a unix system.
@@ -56,27 +65,32 @@ fn select_format(formats: Vec<SurfaceFormatKHR>) -> SurfaceFormatKHR {
 /// if several with present support are found the one with
 ///
 /// Returns the queue_index that can be used to present on `surface`, and the physical device.
-fn select_physical_device(devices: Vec<Arc<PhysicalDevice>>, surface: &Arc<dyn Surface + Send + Sync>) -> Arc<PhysicalDevice>{
+fn select_physical_device(
+    devices: Vec<Arc<PhysicalDevice>>,
+    surface: &Arc<dyn Surface + Send + Sync>,
+) -> Arc<PhysicalDevice> {
     //The current candidate properties in order of their weight.
     // (device_index, Some(present_queue_index), memory_size)
     let mut candidate_properties = (0, None, 0);
-    if devices.len() == 0{
+    if devices.len() == 0 {
         panic!("Vulkan is implemented, but no physical device was found!");
     }
 
-    for (idx, d) in devices.iter().enumerate(){
+    for (idx, d) in devices.iter().enumerate() {
         //Check if that queue can present, if so it is a candidate, therefore check memory size as well and, if better set as new candidate.
         //FIXME: This selection filter is kind of shitty... might create a better one.
-        if let Ok(present_queue_idx) = d.find_present_queue_family(surface){
+        if let Ok(present_queue_idx) = d.find_present_queue_family(surface) {
             let mem_size = d.get_device_properties().limits.max_memory_allocation_count;
 
-            if candidate_properties.1.is_none() || (candidate_properties.1.is_some() && candidate_properties.2 < mem_size){
+            if candidate_properties.1.is_none()
+                || (candidate_properties.1.is_some() && candidate_properties.2 < mem_size)
+            {
                 candidate_properties = (idx, Some(present_queue_idx), mem_size);
             }
         }
     }
 
-    if candidate_properties.1.is_none(){
+    if candidate_properties.1.is_none() {
         panic!("Could not find device we can present on!");
     }
 
@@ -84,9 +98,8 @@ fn select_physical_device(devices: Vec<Arc<PhysicalDevice>>, surface: &Arc<dyn S
     devices[candidate_properties.0].clone()
 }
 
-
 ///selects all queues of a physical device that should be created
-fn select_queues(physical_device: &Arc<PhysicalDevice>) -> Vec<(QueueFamily, f32)>{
+fn select_queues(physical_device: &Arc<PhysicalDevice>) -> Vec<(QueueFamily, f32)> {
     //Check all available queues and rank them based on their importants
     physical_device
         .get_queue_families()
@@ -98,41 +111,33 @@ fn select_queues(physical_device: &Arc<PhysicalDevice>) -> Vec<(QueueFamily, f32
                 q.get_queue_type().transfer,
             ) {
                 (true, true, true) => Some((*q, 1.0 as f32)), //allrounder queue
-                _ => None
+                _ => None,
             }
         })
         .collect::<Vec<_>>()
 }
 
-
-
 ///Holds all data needed for general marp interaction.
-pub struct MarpContext{
+pub struct MarpContext {
     pub device: Arc<Device>,
     pub queue: Arc<Queue>,
     pub swapchain: Arc<Swapchain>,
 
     #[cfg(feature = "watch_shaders")]
     shader_watcher: ShaderWatcher,
-    
-    
+
     ///The last known extent of the swapchain.
     current_extent: Extent2D,
 }
 
-
-impl MarpContext{
+impl MarpContext {
     ///Creates the vulkan context.
     ///
     /// # Panics
     /// If no vulkan driver is present, or features
     /// that are needed to run the renderer.
     //TODO: Add additional information like application name or debugging level?
-    pub fn new<E>(
-        window: &Window,
-        event_loop: &EventLoop<E>,
-    ) -> Self{
-
+    pub fn new<E>(window: &Window, event_loop: &EventLoop<E>) -> Self {
         let app_info = AppInfo::new(
             "NakoApplicaton".to_string(),
             Version::new(0, 1, 0),
@@ -140,7 +145,7 @@ impl MarpContext{
             Version::new(0, 1, 0),
             Version::new(1, 2, 0),
         );
-        
+
         let mut extensions = InstanceExtensions::presentable();
 
         if !is_wayland(event_loop) {
@@ -175,35 +180,32 @@ impl MarpContext{
             WinitSurface::new(instance.clone(), window, event_loop).unwrap();
         //Now search for any graphics capable device
 
-
         let physical_device = select_physical_device(
             PhysicalDevice::find_physical_device(instance.clone()).unwrap(),
-            &surface
+            &surface,
         );
 
-        
         #[cfg(feature = "logging")]
         log::info!(
             "Using physical device {:?}",
             //SAFETY: should be save since the chars should be ascii which is a subset of utf8. However we only need the transmute into u8
             // str parsing is safe again
-            unsafe{
+            unsafe {
                 std::ffi::CStr::from_ptr(
-                    physical_device.get_device_properties().device_name.as_slice() as *const [i8] as *const i8
+                    physical_device
+                        .get_device_properties()
+                        .device_name
+                        .as_slice() as *const [i8] as *const i8,
                 )
             }
         );
 
-
-
-
         //Filter out a graphics queue that also supports compute.
         let queues = select_queues(&physical_device);
 
-        
         #[cfg(feature = "logging")]
         log::info!("Selected queues:\n{:#?}", queues);
-        
+
         //TODO maybe enable debug marker here if debug flag is set
         let features = *physical_device.get_features();
         let vulkan_memory_model = PhysicalDeviceVulkan12Features::builder()
@@ -223,7 +225,7 @@ impl MarpContext{
 
         assert!(queues.len() > 0, "Could not create graphics capable queue!");
         let queue = queues.remove(0);
-        
+
         //Since we got a vulkan instance running now, setup a swapchain
         let swapchain_formats = surface
             .get_supported_formats(device.get_physical_device())
@@ -251,27 +253,27 @@ impl MarpContext{
                 ..Default::default()
             }),
         )
-            .unwrap();
+        .unwrap();
 
         let sc_transition_fence = swapchain.images_to_present_layout(queue.clone());
         //Wait for frame transition before continuing
         sc_transition_fence.wait(u64::MAX).unwrap();
 
-        MarpContext{
+        MarpContext {
             device,
             queue,
             swapchain,
-            current_extent: swapchain_extent
+            current_extent: swapchain_extent,
         }
     }
 
     ///
-    pub fn frame_extent(&self) -> Extent2D{
+    pub fn frame_extent(&self) -> Extent2D {
         self.current_extent
     }
-    
+
     ///Resizes the inner swapchain to `new extent`
-    pub fn resize_frame(&mut self, new_extent: Extent2D){
+    pub fn resize_frame(&mut self, new_extent: Extent2D) {
         //Sometime we have to resize. We do that by reading the new extent information
         //And setting up all subsystems based on it. While there are more effective ways to do that,
         //its nice and easy for now.
@@ -288,9 +290,7 @@ impl MarpContext{
 
         //Recreate swapchain and transform images into present layout.
         self.swapchain.recreate(new_extent);
-        let submit_fence = self
-            .swapchain
-            .images_to_present_layout(self.queue.clone());
+        let submit_fence = self.swapchain.images_to_present_layout(self.queue.clone());
         submit_fence.wait(u64::MAX).unwrap();
 
         //Update stack size to new frame size
