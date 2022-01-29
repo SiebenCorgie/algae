@@ -24,6 +24,10 @@ mod pass_image_to_swapchain;
 mod frame_builder;
 
 fn main() {
+
+    #[cfg(feature = "logging")]
+    simple_logger::SimpleLogger::new().init().unwrap();
+    
     let event_loop = EventLoop::new();
     let window = Window::new(&event_loop).unwrap();
     let mut ctx = MarpContext::new(&window, &event_loop);

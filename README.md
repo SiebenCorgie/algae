@@ -46,13 +46,15 @@ TODO
 - [ ] Shader-toy like Vulkan runner for shaders
 - [ ] SpirV "hook" macros and SpirV module analyzer
 - [ ] Proof of Concept injecting of standard function into SpirV module
-- [ ] Set of functions for algae
-- [ ] 
+- [ ] Set of functions for algae HAI
+- [ ] Successful inject simple 2D SDF into shader
 
 
 ## Contributing
 
-TODO
+You are welcome to contribute. All contributions are licensed under the MPL v2.0.
+
+Note that the project is currently in its early stages. Actual contribution might be difficult.
 
 ## License
 

@@ -121,10 +121,8 @@ impl FrameBuilder {
 
     ///Renders a new frame and outputs it when ready
     pub fn render(&mut self, ctx: &mut MarpContext, window: &Window) {
-        println!("Check window");
         self.check_resize(ctx, window);
 
-        println!("Get next window");
         //Since the image must be "Ok" now, start building the frame now.
         let sem_present_finshed = Semaphore::new(ctx.device.clone()).unwrap();
         let submit_image_index = ctx
@@ -135,13 +133,11 @@ impl FrameBuilder {
         assert!(submit_image_index < ctx.swapchain.image_count());
         let slot = submit_image_index as usize;
 
-        println!("Wait for window");
         //Wait for last copy
         if let Some(inflight) = self.frames[slot].in_flight.take() {
             inflight.wait(u64::MAX).unwrap();
         }
 
-        println!("Record!");
         //Begin copy command buffer
         //Reset command buffer
         let mut command_buffer = self.frames[slot].command_buffer.clone();
