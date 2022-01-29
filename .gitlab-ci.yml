@@ -23,16 +23,12 @@ image: "rust:latest"
 #   - apt-get install -yqq --no-install-recommends build-essential
 
 build:cargo:
-  before_script:
-    - rustup update
   script:
     - rustc --version && cargo --version  # Print version info for debugging
-    - cargo test --workspace --verbose
+    - cargo build
 
 # Use cargo to test the project
 test:cargo:
-  before_script:
-    - rustup update
   script:
     - rustc --version && cargo --version  # Print version info for debugging
     - cargo test --workspace --verbose
