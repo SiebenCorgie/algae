@@ -4,6 +4,8 @@
 
 Runtime linear algebra representation for Rust and JIT compiler for function into SpirV-byte code.
 
+[![pipeline status](https://gitlab.com/tendsinmende/algae/badges/main/pipeline.svg)](https://gitlab.com/tendsinmende/algae/-/commits/main)
+
 </div>
 
 ## Alternatives
@@ -17,9 +19,7 @@ Algebra crates:
 
 ## Description
 
-**Disclaimer**
-
-This is a highly experimental crate that might die unexpectedly. 
+**Disclaimer: This is a highly experimental crate that might die unexpectedly.**
 
 The aim of this project is to create a user facing API that allows to create linear algebra function. They key point being "at runtime". This basically boils down to a `Function<I, O>` object representing `f: I -> O`. 
 
