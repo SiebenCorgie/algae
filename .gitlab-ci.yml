@@ -24,7 +24,7 @@ image: "rust:latest"
 
 build:cargo:
   before_script:
-    rustup update
+    - rustup update
   script:
     - rustc --version && cargo --version  # Print version info for debugging
     - cargo test --workspace --verbose
@@ -32,7 +32,7 @@ build:cargo:
 # Use cargo to test the project
 test:cargo:
   before_script:
-    rustup update
+    - rustup update
   script:
     - rustc --version && cargo --version  # Print version info for debugging
     - cargo test --workspace --verbose
