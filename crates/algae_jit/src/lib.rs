@@ -24,6 +24,7 @@ impl Error for JitError {
 
 ///The main JIT compiler for algae functions. Starts by loading a spirv module from a file and searching for one, or several
 /// occasions of algae signatures. At runtime those functions can be queried and replaced with appropriate Algae functions.
+#[derive(Clone)]
 pub struct AlgaeJit{
     ///Data level representation of the loaded (template) spirv module
     module: rspirv::dr::Module,
@@ -73,6 +74,7 @@ impl AlgaeJit{
 
     ///Returns the current SpirV byte code.
     pub fn get_module(&mut self) ->&[u32]{
+        self.binary.clear();
         self.module.assemble_into(&mut self.binary);
         &self.binary
     }

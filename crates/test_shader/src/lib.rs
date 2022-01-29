@@ -18,9 +18,15 @@ use spirv_std::Image;
 #[cfg(not(target_arch = "spirv"))]
 use spirv_std::macros::spirv;
 
+
+pub struct PushConst{
+    color: [f32; 4]
+}
+
 #[spirv(compute(threads(8, 8, 1)))]
 pub fn main(
     #[spirv(global_invocation_id)] id: UVec3,
+    #[spirv(push_constant)] push: &PushConst,
     #[spirv(descriptor_set = 0, binding = 0)] target_image: &Image!(2D, format=rgba32f, sampled=false),
 ) {
     let color = Vec4::new(
@@ -29,6 +35,10 @@ pub fn main(
         (id.z as f32 / 100.0) % 1.0,
         1.0
     );
+
+    let pcol = Vec4::from(push.color);
+
+    let color = color * pcol;
     
     unsafe {
         target_image.write(id.xy(), color);
