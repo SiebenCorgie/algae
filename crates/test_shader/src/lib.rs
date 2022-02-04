@@ -3,7 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 #![cfg_attr(
     target_arch = "spirv",
-    feature(register_attr),
+    feature(register_attr, asm_experimental_arch),
     register_attr(spirv),
     no_std
 )]
@@ -11,16 +11,25 @@
 #![deny(warnings)]
 
 use spirv_std;
-use spirv_std::glam::{UVec3, Vec3Swizzles, Vec4};
+use spirv_std::glam::{UVec3, Vec3Swizzles, Vec4, Vec2};
 use spirv_std::Image;
 
 //Note this is needed to compile on cpu
 #[cfg(not(target_arch = "spirv"))]
 use spirv_std::macros::spirv;
 
+#[derive(Clone)]
 pub struct PushConst {
+    #[allow(dead_code)]
     color: [f32; 4],
 }
+
+#[inline(never)]
+fn sdf(coord: Vec2, con: PushConst) -> f32{
+    /*Hacky way of binding the variables to not have them remove by the compiler*/
+    coord.x + Vec4::from(con.color).min_element()
+}
+
 
 #[spirv(compute(threads(8, 8, 1)))]
 pub fn main(
@@ -35,11 +44,17 @@ pub fn main(
         1.0,
     );
 
-    let pcol = Vec4::from(push.color);
-
-    let color = color * pcol;
+        
+    let color = if sdf(id.as_vec3().xy(), push.clone()) > 0.0{
+        Vec4::ZERO
+    }else{
+        color
+    };
 
     unsafe {
         target_image.write(id.xy(), color);
     }
 }
+
+
+//Gonna emitted some stuff
