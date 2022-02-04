@@ -5,6 +5,7 @@ const SHADER_DIR: &'static str = "../../resources/";
 fn main() {
     SpirvBuilder::new("../test_shader", "spirv-unknown-vulkan1.1")
         .print_metadata(MetadataPrintout::Full)
+        .spirv_metadata(spirv_builder::SpirvMetadata::Full)
         .build()
         .expect("Failed to build test shader");
 
