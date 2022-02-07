@@ -1,5 +1,7 @@
 #![deny(warnings)]
 
+
+use algae::{Formula, operations::{Variable, Constant, Length, Subtraction}, glam::Vec2};
 use algae_jit::AlgaeJit;
 use frame_builder::FrameBuilder;
 use marp_surface_winit::winit::{
@@ -23,6 +25,10 @@ mod pass_image_to_swapchain;
 ///Frame builder. Hosts swapchain image handling, subresource generation and recording of the command buffer.
 mod frame_builder;
 
+
+
+
+
 fn main() {
 
     #[cfg(feature = "logging")]
@@ -32,8 +38,21 @@ fn main() {
     let window = Window::new(&event_loop).unwrap();
     let mut ctx = MarpContext::new(&window, &event_loop);
 
-    let compiler = AlgaeJit::new("resources/test_shader.spv").unwrap();
+    
+    let function = Formula::new(
+        Subtraction::new(
+            Box::new(Length::new(
+                Box::new(Variable::new("Coord", Vec2::new(0.0, 0.0)))
+            )),
+            Box::new(Constant::new(150.0))
+        )
+    );
 
+    let ser = function.serialize();
+    println!("Ser to:\n\n{}", ser.code);
+    
+    let compiler = AlgaeJit::new("resources/test_shader.spv").unwrap();
+    
     let mut fb = FrameBuilder::new(&ctx, compiler);
 
     event_loop.run(move |event, _target, control_flow| {
