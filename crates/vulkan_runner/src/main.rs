@@ -1,7 +1,6 @@
 #![deny(warnings)]
 
 
-use algae::{Formula, operations::{Variable, Constant, Length, Subtraction}, glam::Vec2};
 use algae_jit::AlgaeJit;
 use frame_builder::FrameBuilder;
 use marp_surface_winit::winit::{
@@ -38,18 +37,6 @@ fn main() {
     let window = Window::new(&event_loop).unwrap();
     let mut ctx = MarpContext::new(&window, &event_loop);
 
-    
-    let function = Formula::new(
-        Subtraction::new(
-            Box::new(Length::new(
-                Box::new(Variable::new("Coord", Vec2::new(0.0, 0.0)))
-            )),
-            Box::new(Constant::new(150.0))
-        )
-    );
-
-    let ser = function.serialize();
-    println!("Ser to:\n\n{}", ser.code);
     
     let compiler = AlgaeJit::new("resources/test_shader.spv").unwrap();
     

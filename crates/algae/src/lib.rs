@@ -2,102 +2,85 @@
 //! 
 //! Algae is the algebra layer that can be jit compiled into an existing SpirV module.
 //!
-//!
 
+pub use glam;
+
+use std::marker::PhantomData;
+
+pub use rspirv;
+use rspirv::{dr::Builder, spirv::Word};
 
 pub mod operations;
 
-use std::{marker::PhantomData, fmt::Display};
-pub use glam;
-use glam::{Vec2, Vec3, Vec4, Quat, Mat3, Mat4};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub struct AbstractRegister<T>{
-    slot: usize,
+
+///Serializer used for building the spirv bytecode
+pub type Serializer = Builder;
+
+///Provides several methods to make working with the serializer easier.
+trait SerializerExt{
+    fn type_void(&mut self) -> Word;
+    fn type_f32(&mut self) -> Word;
+    fn type_vec_f32(&mut self, n_components: usize) -> Word;
+    fn type_mat_f32(&mut self, width: usize, height: usize) -> Word;
+
+    fn type_u32(&mut self) -> Word;
+    fn type_i32(&mut self) -> Word;
+}
+
+impl SerializerExt for Serializer{
+    fn type_void(&mut self) -> Word{
+        self.type_void()
+    }
+
+    fn type_f32(&mut self) -> Word{
+        self.type_float(32)
+    }
+
+    fn type_vec_f32(&mut self, n_components: usize) -> Word{
+        let tf32 = self.type_f32();
+        self.type_vector(tf32, n_components as u32)
+    }
+    
+    ///returns the type of 4x4 f32 matrix
+    fn type_mat_f32(&mut self, width: usize, height: usize) -> Word{
+        let tvec4 = self.type_vec_f32(height);
+        self.type_matrix(tvec4, width as u32)
+    }
+
+    fn type_u32(&mut self) -> Word{
+        self.type_int(32, 0)
+    }
+    
+    fn type_i32(&mut self) -> Word{
+        self.type_int(32, 1)
+    }
+}
+
+
+///Type data id with type tag
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
+pub struct DataId<T>{
+    pub id: Word,
     ty: PhantomData<T>
 }
 
-impl<T> Display for AbstractRegister<T>{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "AR({})", self.slot)
+impl<T> From<Word> for DataId<T>{
+    fn from(word: Word) -> Self {
+        DataId{
+            id: word,
+            ty: PhantomData
+        }
     }
 }
 
-///Single operation in the formula.
+pub type BoxOperation<I, O> = Box<dyn Operation<Input = I, Output = DataId<O>>>;
+
 pub trait Operation{
-    ///Input signature of this operation
     type Input;
-    ///Output signature of this operation
     type Output;
 
-    ///Serializes `Self`, gets provided the register of the input value. Returns the output register.
-    fn serialize(&self, serializer: &mut Serialzer, registar: &mut Registar, input_register: AbstractRegister<Self::Input>) -> AbstractRegister<Self::Output>;
+    fn serialize(&mut self, serializer: &mut Serializer, input: Self::Input) -> Self::Output;
 }
 
 
-///An assembled formula. Calculates the output `O` from an input `I`.
-pub struct Formula<I, O>{
-    root_operation: Box<dyn Operation<Input = I, Output = O>>
-}
-
-impl<I, O> Formula<I, O>{
-    pub fn new(operation: impl Operation<Input = I, Output = O> + 'static) -> Self{
-        Formula{
-            root_operation: Box::new(operation)
-        }
-    }
-
-    pub fn serialize(&self) -> Serialzer{
-        let mut ser = Serialzer::new();
-        let mut registar = Registar::new();
-
-        let input_register = registar.alloc();
-        
-        let output_register = self.root_operation.serialize(&mut ser, &mut registar, input_register);
-        println!("Output at {output_register}");
-
-        ser
-    }
-}
-
-
-pub struct Registar{    
-    register: usize
-}
-
-impl Registar{
-    pub fn new() -> Self{
-        Registar{
-            register: 0,
-        }
-    }
-    
-    pub fn alloc<T>(&mut self) -> AbstractRegister<T>{
-        let reg = AbstractRegister{
-            slot: self.register,
-            ty: PhantomData
-        };
-
-        self.register += 1;
-
-        reg
-    }
-}
-
-
-pub struct Serialzer{
-    pub code: String,
-}
-
-impl Serialzer{
-    pub fn new() -> Self{
-        Serialzer{
-            code: String::with_capacity(1024)
-        }
-    }
-
-    pub fn append(&mut self, code: &str){
-        self.code.push_str("\n");
-        self.code.push_str(code);
-    }
-}
