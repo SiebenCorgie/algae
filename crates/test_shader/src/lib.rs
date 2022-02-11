@@ -11,7 +11,7 @@
 #![deny(warnings)]
 
 use spirv_std;
-use spirv_std::glam::{UVec3, Vec3Swizzles, Vec4, Vec2};
+use spirv_std::glam::{UVec3, Vec3Swizzles, Vec4, Vec2, const_vec2};
 use spirv_std::Image;
 
 //Note this is needed to compile on cpu
@@ -24,10 +24,13 @@ pub struct PushConst {
     color: [f32; 4],
 }
 
+const VECCONST: Vec2 = const_vec2!([2.0, 1.5]);
+
 #[inline(never)]
 fn sdf(coord: Vec2, con: PushConst) -> f32{
     /*Hacky way of binding the variables to not have them remove by the compiler*/
-    coord.x + Vec4::from(con.color).min_element()
+    let d = (coord + VECCONST).length() - con.color[0];
+    coord.x + Vec4::from(con.color).min_element() + d
 }
 
 

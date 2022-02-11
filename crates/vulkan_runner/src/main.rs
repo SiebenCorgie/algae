@@ -1,5 +1,6 @@
 #![deny(warnings)]
 
+
 use algae_jit::AlgaeJit;
 use frame_builder::FrameBuilder;
 use marp_surface_winit::winit::{
@@ -23,6 +24,10 @@ mod pass_image_to_swapchain;
 ///Frame builder. Hosts swapchain image handling, subresource generation and recording of the command buffer.
 mod frame_builder;
 
+
+
+
+
 fn main() {
 
     #[cfg(feature = "logging")]
@@ -32,8 +37,9 @@ fn main() {
     let window = Window::new(&event_loop).unwrap();
     let mut ctx = MarpContext::new(&window, &event_loop);
 
+    
     let compiler = AlgaeJit::new("resources/test_shader.spv").unwrap();
-
+    
     let mut fb = FrameBuilder::new(&ctx, compiler);
 
     event_loop.run(move |event, _target, control_flow| {

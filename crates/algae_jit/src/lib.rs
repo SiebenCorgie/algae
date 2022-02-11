@@ -1,5 +1,9 @@
 use std::{error::Error, fs::File, io::{Read, Write}, path::Path};
 
+use algae::{
+    glam::Vec2,
+    operations::{arithmetic::Subtraction, vector::Length, native::Constant}, Operation
+};
 use rspirv::{
     binary::{Assemble, Disassemble, Parser},
     dr::{Loader, Builder}, spirv::{Word, self},
@@ -107,12 +111,18 @@ struct Injector{
 impl Injector{
 
     fn inject(mut builder: Builder) -> Builder{
-        //For now just inject a returned constant value
-        let ty_float = builder.type_float(32);
-      
-        let constf32 = builder.constant_f32(ty_float, 0.0);
 
-        builder.ret_value(constf32).unwrap();
+        let mut function = Subtraction{
+            minuent: Box::new(Length{
+                inner: Box::new(Constant{value: Vec2::new(1.5, 1.0)})
+            }),
+            subtrahend: Box::new(Constant{value: 0.5})
+        };
+
+        //Serialize into function
+        let return_value = function.serialize(&mut builder, ());
+        
+        builder.ret_value(return_value.id).unwrap();
         
         builder
     }
