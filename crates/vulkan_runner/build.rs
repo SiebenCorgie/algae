@@ -6,6 +6,7 @@ fn main() {
     SpirvBuilder::new("../test_shader", "spirv-unknown-vulkan1.1")
         .print_metadata(MetadataPrintout::Full)
         .spirv_metadata(spirv_builder::SpirvMetadata::Full)
+        .capability(spirv_builder::Capability::Int8)
         .build()
         .expect("Failed to build test shader");
 

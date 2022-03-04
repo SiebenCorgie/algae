@@ -10,3 +10,4 @@ crate-type = ["lib", "dylib"]
 
 [dependencies]
 spirv-std = { git = "https://github.com/EmbarkStudios/rust-gpu", features = ["glam"]}
+algae_gpu = {path = "../algae_gpu"}

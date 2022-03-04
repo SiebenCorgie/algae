@@ -13,7 +13,7 @@ logging = ["log", "simple_logger"]
 validation = []
 
 [dependencies]
-algae = {path = "../algae"}
+algae = {path = "../algae", features = ["logging"]}
 algae_jit = {path = "../algae_jit"}
 
 #vulkan wrapper
