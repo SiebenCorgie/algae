@@ -1,57 +1,66 @@
-use rspirv::{dr::Operand, spirv::Word};
+use rspirv::dr::Operand;
+use glam::{Vec2, Vec3, Vec4};
 
-use crate::{Operation, DataId, SerializerExt, Serializer};
+use crate::{Operation, DataId};
 
-/// N-component long float vector
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub struct VectorN<const N: usize>;
-impl<const N: usize> VectorN<N>{
-    fn spirv_type(ser: &mut Serializer) -> Word{
-        let tf32 = ser.type_f32();
-        ser.type_vector(tf32, N as u32)
+///Returns the euclidian length of a vector `V`. For float vectors up to 4 elements spirv's extended instruction set can be used.
+/// otherwise a fallback based in [fast inverse square-root](https://en.wikipedia.org/wiki/Fast_inverse_square_root) might be used.
+pub struct Length<V, I>{
+    pub inner: Box<dyn Operation<Input = I, Output = DataId<V>>>
+}
+
+macro_rules! impl_length {
+    ($vecty:ty) => {
+        impl<I> Operation for Length<$vecty, I>{
+            type Input = I;
+            type Output = DataId<f32>;
+
+            fn serialize(&mut self, serializer: &mut crate::Serializer, input: Self::Input) -> Self::Output {
+                //Uses the extended instructionset to get the length of an vector
+                let res = self.inner.serialize(serializer, input);
+                let tf32 = serializer.type_f32();
+
+                //Load instructionset
+                let ext_instset_id = serializer.builder_mut().ext_inst_import("GLSL.std.450");
+                //Call
+                DataId::from(serializer.builder_mut().ext_inst(tf32, None, ext_instset_id, 66, [Operand::IdRef(res.id)]).unwrap())
+            }
+        }
     }
 }
 
-pub struct Length<const N: usize, I>{
-    pub inner: Box<dyn Operation<Input = I, Output = DataId<VectorN<N>>>>
-}
+impl_length!(Vec2);
+impl_length!(Vec3);
+impl_length!(Vec4);
 
-
-impl<const N: usize, I> Operation for Length<N, I>{
-    type Input = I;
-    type Output = DataId<f32>;
-
-    fn serialize(&mut self, serializer: &mut crate::Serializer, input: Self::Input) -> Self::Output {
-        //Uses the extended instructionset to get the length of an vector
-        let res = self.inner.serialize(serializer, input);
-        let tf32 = serializer.type_f32();
-
-        //Load instructionset
-        let ext_instset_id = serializer.ext_inst_import("GLSL.std.450");
-        //Call
-        DataId::from(serializer.ext_inst(tf32, None, ext_instset_id, 66, [Operand::IdRef(res.id)]).unwrap())
-    }
-}
-
-///Selects the element `S` of the vector with size N.
+///Selects the `element` of the vector.
 ///
-/// Note that `S<N` must hold true.
-pub struct VecSelectElement<const S: usize, const N: usize, I>{
-    pub inner: Box<dyn Operation<Input = I, Output = DataId<VectorN<N>>>>,
+/// Note that `element` must be within the number of elements of the concrete vector `V`
+pub struct VecSelectElement<V, I>{
+    pub element: u32,
+    pub inner: Box<dyn Operation<Input = I, Output = DataId<V>>>,
 }
 
-impl<const S: usize, const N: usize, I> Operation for VecSelectElement<S, N, I>{
-    type Input = I;
-    type Output = DataId<f32>;
 
-    fn serialize(&mut self, serializer: &mut crate::Serializer, input: Self::Input) -> Self::Output {
+macro_rules! impl_vec_select {
+    ($vecty:ty, $num_comp:expr) => {
+        impl<I> Operation for VecSelectElement<$vecty, I>{
+            type Input = I;
+            type Output = DataId<f32>;
 
-        assert!(S < N, "Tried to select element {}, but vector is of length {}", S, N);
-        
-        let tyf32 = serializer.type_f32();
-        
-        let vector_return = self.inner.serialize(serializer, input);
-        
-        DataId::from(serializer.vector_extract_dynamic(tyf32, None, vector_return.id, S as u32).unwrap())
+            fn serialize(&mut self, serializer: &mut crate::Serializer, input: Self::Input) -> Self::Output {
+
+                assert!(self.element < $num_comp, "Tried to select element {}, but vector is of length {}", self.element, $num_comp);
+                let tyf32 = serializer.type_f32();
+                
+                let vector_return = self.inner.serialize(serializer, input);
+                
+                DataId::from(serializer.builder_mut().vector_extract_dynamic(tyf32, None, vector_return.id, self.element).unwrap())
+            }
+        }
     }
 }
+
+impl_vec_select!(Vec2, 2);
+impl_vec_select!(Vec3, 3);
+impl_vec_select!(Vec4, 4);

@@ -11,7 +11,7 @@
 #![deny(warnings)]
 
 use spirv_std;
-use spirv_std::glam::{UVec3, Vec3Swizzles, Vec4, Vec2, const_vec2};
+use spirv_std::glam::{UVec3, Vec3Swizzles, Vec4, Vec2};
 use spirv_std::Image;
 
 //Note this is needed to compile on cpu
@@ -19,20 +19,15 @@ use spirv_std::Image;
 use spirv_std::macros::spirv;
 
 #[derive(Clone)]
+#[repr(C)]
 pub struct PushConst {
     #[allow(dead_code)]
     color: [f32; 4],
 }
 
-const VECCONST: Vec2 = const_vec2!([2.0, 1.5]);
-
-#[inline(never)]
-fn sdf(coord: Vec2, con: PushConst) -> f32{
-    /*Hacky way of binding the variables to not have them remove by the compiler*/
-    let d = (coord + VECCONST).length() - con.color[0];
-    coord.x + Vec4::from(con.color).min_element() + d
-}
-
+algae_gpu::algae_inject!(|coord: Vec2, cons: PushConst| -> f32{
+    0.0
+});
 
 #[spirv(compute(threads(8, 8, 1)))]
 pub fn main(
@@ -47,8 +42,22 @@ pub fn main(
         1.0,
     );
 
-        
-    let color = if sdf(id.as_vec3().xy(), push.clone()) > 0.0{
+    let coord = id.as_vec3().xy();
+    let pushsig = push.clone();
+/*
+    let coord = VariableSignature{
+        id: 0,
+        value: id.as_vec3().xy()
+    };
+
+    let pushsig = VariableSignature{
+        id: 1,
+        value: push.clone()
+    };
+     */
+
+    
+    let color = if algae_inject(coord, pushsig) > 0.0{
         Vec4::ZERO
     }else{
         color

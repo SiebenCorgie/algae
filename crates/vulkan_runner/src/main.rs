@@ -1,6 +1,7 @@
-#![deny(warnings)]
+//#![deny(warnings)]
 
 
+use algae::{operations::{native::{Constant, Variable}, arithmetic::Subtraction, vector::Length}, glam::Vec2};
 use algae_jit::AlgaeJit;
 use frame_builder::FrameBuilder;
 use marp_surface_winit::winit::{
@@ -38,7 +39,16 @@ fn main() {
     let mut ctx = MarpContext::new(&window, &event_loop);
 
     
-    let compiler = AlgaeJit::new("resources/test_shader.spv").unwrap();
+    let mut compiler = AlgaeJit::new("resources/test_shader.spv").unwrap();
+
+    let mut function = Subtraction{
+        minuent: Box::new(Length{
+            inner: Box::new(Variable::new("coord", Vec2::new(0.0, 0.0)))
+        }),
+        subtrahend: Box::new(Constant{value: 100.0})
+    };
+    
+    compiler.injector().inject((), &mut function);
     
     let mut fb = FrameBuilder::new(&ctx, compiler);
 
