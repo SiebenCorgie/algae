@@ -7,7 +7,7 @@ use rspirv::{
     spirv::{Op, Word},
 };
 
-use crate::Serializer;
+use crate::{DataId, Serializer};
 
 use super::SpvError;
 
@@ -15,7 +15,6 @@ use super::SpvError;
 ///or derived from a rust type at runtime via the [IntoSpvType](IntoSpvType) trait.
 #[derive(Clone, Debug)]
 pub enum SpvType {
-    Void,
     Bool,
     Int {
         ///True if the int is sigend
@@ -78,7 +77,6 @@ impl SpvType {
                 }
             },
 
-            Op::TypeVoid => Ok(SpvType::Void),
             Op::TypeBool => Ok(SpvType::Bool),
             Op::TypeInt => match (&instruction.operands[0], &instruction.operands[1]) {
                 (LiteralInt32(width), LiteralInt32(sign)) => match sign {
@@ -248,7 +246,6 @@ impl SpvType {
     ///Searches for, or creates the type Id for `self`. Returns None if SpvType is a float or integer literal.
     pub fn spirv_type_id(&self, serializer: &mut Serializer) -> Option<Word> {
         match self {
-            SpvType::Void => Some(serializer.builder_mut().type_void()),
             SpvType::Bool => Some(serializer.builder_mut().type_bool()),
             SpvType::Float { width } => Some(serializer.builder_mut().type_float(*width)),
             SpvType::Int { signed, width } => Some(
@@ -301,7 +298,6 @@ impl SpvType {
 impl PartialEq for SpvType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (SpvType::Void, SpvType::Void) => true,
             (SpvType::Bool, SpvType::Bool) => true,
             (
                 SpvType::Int {
@@ -368,7 +364,12 @@ impl PartialEq for SpvType {
 
 ///If implemented allows a type to be reflected into a spirv type at runtime
 pub trait IntoSpvType {
+    ///Returns the SpvType version of `Self`.
     fn into_spv_type() -> SpvType;
+    ///Serializes `self` as a constant into `serializer`, returning the `DataId<Self>` to this constant.
+    fn constant_serialize(&self, serializer: &mut Serializer) -> DataId<Self>
+    where
+        Self: Sized;
     ///Shorthand for `Self::into_spv_type().spirv_type_id(serializer)`. Returns a types id in the context
     /// of a certain serializer.
     fn spirv_type_id(serializer: &mut Serializer) -> Option<Word> {
@@ -376,24 +377,35 @@ pub trait IntoSpvType {
     }
 }
 
-impl IntoSpvType for () {
-    fn into_spv_type() -> SpvType {
-        SpvType::Void
-    }
-}
 impl IntoSpvType for bool {
     fn into_spv_type() -> SpvType {
         SpvType::Bool
+    }
+    fn constant_serialize(&self, serializer: &mut Serializer) -> DataId<Self> {
+        let ty = Self::spirv_type_id(serializer).unwrap();
+        if *self {
+            DataId::from(serializer.builder_mut().constant_true(ty))
+        } else {
+            DataId::from(serializer.builder_mut().constant_false(ty))
+        }
     }
 }
 impl IntoSpvType for f32 {
     fn into_spv_type() -> SpvType {
         SpvType::Float { width: 32 }
     }
+    fn constant_serialize(&self, serializer: &mut Serializer) -> DataId<Self> {
+        let ty = Self::spirv_type_id(serializer).unwrap();
+        DataId::from(serializer.builder_mut().constant_f32(ty, *self))
+    }
 }
 impl IntoSpvType for f64 {
     fn into_spv_type() -> SpvType {
         SpvType::Float { width: 64 }
+    }
+    fn constant_serialize(&self, serializer: &mut Serializer) -> DataId<Self> {
+        let ty = Self::spirv_type_id(serializer).unwrap();
+        DataId::from(serializer.builder_mut().constant_f64(ty, *self))
     }
 }
 impl IntoSpvType for i32 {
@@ -403,6 +415,14 @@ impl IntoSpvType for i32 {
             width: 32,
         }
     }
+    fn constant_serialize(&self, serializer: &mut Serializer) -> DataId<Self> {
+        let ty = Self::spirv_type_id(serializer).unwrap();
+        DataId::from(
+            serializer
+                .builder_mut()
+                .constant_u32(ty, u32::from_be_bytes(self.to_be_bytes())),
+        ) //note constructing unsigend version of the i32.
+    }
 }
 impl IntoSpvType for i64 {
     fn into_spv_type() -> SpvType {
@@ -410,6 +430,14 @@ impl IntoSpvType for i64 {
             signed: true,
             width: 64,
         }
+    }
+    fn constant_serialize(&self, serializer: &mut Serializer) -> DataId<Self> {
+        let ty = Self::spirv_type_id(serializer).unwrap();
+        DataId::from(
+            serializer
+                .builder_mut()
+                .constant_u64(ty, u64::from_be_bytes(self.to_be_bytes())),
+        ) //note constructing unsigend version of the i32.
     }
 }
 impl IntoSpvType for u32 {
@@ -419,6 +447,10 @@ impl IntoSpvType for u32 {
             width: 32,
         }
     }
+    fn constant_serialize(&self, serializer: &mut Serializer) -> DataId<Self> {
+        let ty = Self::spirv_type_id(serializer).unwrap();
+        DataId::from(serializer.builder_mut().constant_u32(ty, *self))
+    }
 }
 impl IntoSpvType for u64 {
     fn into_spv_type() -> SpvType {
@@ -427,83 +459,54 @@ impl IntoSpvType for u64 {
             width: 64,
         }
     }
-}
-
-impl IntoSpvType for Vec2 {
-    fn into_spv_type() -> SpvType {
-        SpvType::Vec {
-            data_type: Box::new(f32::into_spv_type()),
-            num_elements: 2,
-        }
-    }
-}
-impl IntoSpvType for Vec3 {
-    fn into_spv_type() -> SpvType {
-        SpvType::Vec {
-            data_type: Box::new(f32::into_spv_type()),
-            num_elements: 3,
-        }
-    }
-}
-impl IntoSpvType for Vec4 {
-    fn into_spv_type() -> SpvType {
-        SpvType::Vec {
-            data_type: Box::new(f32::into_spv_type()),
-            num_elements: 4,
-        }
+    fn constant_serialize(&self, serializer: &mut Serializer) -> DataId<Self> {
+        let ty = Self::spirv_type_id(serializer).unwrap();
+        DataId::from(serializer.builder_mut().constant_u64(ty, *self))
     }
 }
 
-impl IntoSpvType for IVec2 {
-    fn into_spv_type() -> SpvType {
-        SpvType::Vec {
-            data_type: Box::new(i32::into_spv_type()),
-            num_elements: 2,
-        }
-    }
-}
-impl IntoSpvType for IVec3 {
-    fn into_spv_type() -> SpvType {
-        SpvType::Vec {
-            data_type: Box::new(i32::into_spv_type()),
-            num_elements: 3,
-        }
-    }
-}
-impl IntoSpvType for IVec4 {
-    fn into_spv_type() -> SpvType {
-        SpvType::Vec {
-            data_type: Box::new(i32::into_spv_type()),
-            num_elements: 4,
+///Implements IntoSpvType for a glam vector
+macro_rules! impl_into_spv_vec{
+    ($vecty:ty, $basety:ty, $ne:expr, $($element_name:ident),+) => {
+        impl IntoSpvType for $vecty {
+            fn into_spv_type() -> SpvType {
+                SpvType::Vec {
+                    data_type: Box::new(<$basety>::into_spv_type()),
+                    num_elements: $ne,
+                }
+            }
+            fn constant_serialize(&self, serializer: &mut Serializer) -> DataId<Self>{
+                let ty = Self::spirv_type_id(serializer).unwrap();
+
+                let ids = [
+                    $(
+                        self.$element_name.constant_serialize(serializer).id
+                    ),+
+                ];
+                DataId::from(
+                    serializer.builder_mut().constant_composite(
+                        ty,
+                        ids
+                    )
+                )
+            }
         }
     }
 }
 
-impl IntoSpvType for UVec2 {
-    fn into_spv_type() -> SpvType {
-        SpvType::Vec {
-            data_type: Box::new(u32::into_spv_type()),
-            num_elements: 2,
-        }
-    }
-}
-impl IntoSpvType for UVec3 {
-    fn into_spv_type() -> SpvType {
-        SpvType::Vec {
-            data_type: Box::new(u32::into_spv_type()),
-            num_elements: 3,
-        }
-    }
-}
-impl IntoSpvType for UVec4 {
-    fn into_spv_type() -> SpvType {
-        SpvType::Vec {
-            data_type: Box::new(u32::into_spv_type()),
-            num_elements: 4,
-        }
-    }
-}
+impl_into_spv_vec!(Vec2, f32, 2, x, y);
+impl_into_spv_vec!(Vec3, f32, 3, x, y, z);
+impl_into_spv_vec!(Vec4, f32, 4, x, y, z, w);
 
+impl_into_spv_vec!(IVec2, i32, 2, x, y);
+impl_into_spv_vec!(IVec3, i32, 3, x, y, z);
+impl_into_spv_vec!(IVec4, i32, 4, x, y, z, w);
+
+impl_into_spv_vec!(UVec2, u32, 2, x, y);
+impl_into_spv_vec!(UVec3, u32, 3, x, y, z);
+impl_into_spv_vec!(UVec4, u32, 4, x, y, z, w);
+
+/* TODO implement matrix types as constant
 impl IntoSpvType for Mat2 {
     fn into_spv_type() -> SpvType {
         SpvType::Matrix {
@@ -531,7 +534,7 @@ impl IntoSpvType for Mat4 {
         }
     }
 }
-
+*/
 fn is_op_type(op: &Op) -> bool {
     match op {
         Op::TypeVoid
