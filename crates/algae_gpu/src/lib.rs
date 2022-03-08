@@ -1,5 +1,5 @@
 #![no_std]
-#[deny(warnings)]
+#![deny(warnings)]
 pub use algae_inject::algae_inject;
 
 //Inject proc macro with function like synthax.
@@ -17,7 +17,7 @@ pub const fn simple_hash(name: &str) -> u32 {
     let mut idx = 0;
     while idx < num_bytes {
         let a0 = bytes[idx] as u32; //Note the first allways succeeds baed on the check above
-        val = val ^ (a0 << ((idx % 4) * 8));
+        val ^= a0 << ((idx % 4) * 8);
         idx += 1;
     }
 

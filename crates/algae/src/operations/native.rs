@@ -2,56 +2,22 @@
 
 use std::marker::PhantomData;
 
-use glam::Vec2;
-
 use crate::{spv_fi::IntoSpvType, BoxOperation, DataId, Operation, Serializer};
 
 pub struct Constant<T> {
     pub value: T,
 }
 
-impl Operation for Constant<f32> {
+///Implements Constant for any type that can be also expressed as a SpirvType
+impl<T> Operation for Constant<T>
+where
+    T: IntoSpvType,
+{
     type Input = ();
-    type Output = DataId<f32>;
+    type Output = DataId<T>;
 
     fn serialize(&mut self, serializer: &mut Serializer, _input: Self::Input) -> Self::Output {
-        let ty_f32 = f32::spirv_type_id(serializer).unwrap();
-        DataId::from(serializer.builder_mut().constant_f32(ty_f32, self.value))
-    }
-}
-
-impl Operation for Constant<Vec2> {
-    type Input = ();
-    type Output = DataId<Vec2>;
-
-    fn serialize(&mut self, serializer: &mut Serializer, _input: Self::Input) -> Self::Output {
-        let ty_vec2 = Vec2::spirv_type_id(serializer).unwrap();
-        //Setup float constants
-        let cx = Constant {
-            value: self.value.x,
-        }
-        .serialize(serializer, ());
-        let cy = Constant {
-            value: self.value.y,
-        }
-        .serialize(serializer, ());
-
-        //Setup const composite
-        DataId::from(
-            serializer
-                .builder_mut()
-                .constant_composite(ty_vec2, [cx.id, cy.id]),
-        )
-    }
-}
-
-impl Operation for Constant<u32> {
-    type Input = ();
-    type Output = DataId<u32>;
-
-    fn serialize(&mut self, serializer: &mut Serializer, _input: Self::Input) -> Self::Output {
-        let ty_u32 = u32::spirv_type_id(serializer).unwrap();
-        DataId::from(serializer.builder_mut().constant_u32(ty_u32, self.value))
+        self.value.constant_serialize(serializer)
     }
 }
 
