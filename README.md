@@ -42,12 +42,12 @@ TODO
 
 ## Roadmap
 
-- [ ] High level Algebra Interface HAI
+- [x] High level Algebra Interface HAI
 - [x] Shader-toy like Vulkan runner for shaders
-- [ ] SpirV "hook" macros and SpirV module analyzer
+- [x] SpirV "hook" macros and SpirV module analyzer
 - [x] Proof of Concept injecting of standard function into SpirV module
 - [ ] Set of functions for algae HAI
-- [ ] Successful inject simple 2D SDF into shader
+- [x] Successful inject simple 2D SDF into shader
 
 
 ## Contributing

@@ -11,7 +11,7 @@
 #![deny(warnings)]
 
 use spirv_std;
-use spirv_std::glam::{UVec3, Vec3Swizzles, Vec4, Vec2};
+use spirv_std::glam::{UVec3, Vec2, Vec3Swizzles, Vec4};
 use spirv_std::Image;
 
 //Note this is needed to compile on cpu
@@ -21,12 +21,13 @@ use spirv_std::macros::spirv;
 #[derive(Clone)]
 #[repr(C)]
 pub struct PushConst {
-    #[allow(dead_code)]
-    color: [f32; 4],
+    offset: [f32; 2],
+    pad0: [f32; 2],
 }
 
-algae_gpu::algae_inject!(|coord: Vec2, cons: PushConst| -> f32{
-    0.0
+algae_gpu::algae_inject!(|coord: Vec2, offset: Vec2| -> f32 {
+    let a = coord.value + offset.value;
+    a.dot(a)
 });
 
 #[spirv(compute(threads(8, 8, 1)))]
@@ -43,8 +44,7 @@ pub fn main(
     );
 
     let coord = id.as_vec3().xy();
-    let pushsig = push.clone();
-/*
+    /*
     let coord = VariableSignature{
         id: 0,
         value: id.as_vec3().xy()
@@ -56,10 +56,9 @@ pub fn main(
     };
      */
 
-    
-    let color = if algae_inject(coord, pushsig) > 0.0{
+    let color = if algae_inject(coord, Vec2::from(push.offset)) > 0.0 {
         Vec4::ZERO
-    }else{
+    } else {
         color
     };
 
@@ -67,6 +66,5 @@ pub fn main(
         target_image.write(id.xy(), color);
     }
 }
-
 
 //Gonna emitted some stuff

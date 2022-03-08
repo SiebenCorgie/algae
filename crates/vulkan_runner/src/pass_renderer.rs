@@ -26,9 +26,18 @@ use crate::frame_builder::dispatch_size;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
-struct PushConst {
-    #[allow(dead_code)]
-    color: [f32; 4],
+pub struct PushConst {
+    pub offset: [f32; 2],
+    pad0: [f32; 2],
+}
+
+impl Default for PushConst {
+    fn default() -> Self {
+        PushConst {
+            offset: [0.0; 2],
+            pad0: [0.0; 2],
+        }
+    }
 }
 
 pub(crate) struct PassData {
@@ -42,7 +51,7 @@ pub(crate) struct ImagePass {
     pipeline: Arc<ComputePipeline>,
 
     pub(crate) shader_loader: AlgaeJit,
-    camera: PushConstant<PushConst>,
+    pub(crate) push_constant: PushConstant<PushConst>,
 }
 
 impl ImagePass {
@@ -104,14 +113,13 @@ impl ImagePass {
         }
 
         //Create initial push constant
-        let camera_const =
-            PushConstant::new(PushConst { color: [1.0; 4] }, ShaderStageFlags::COMPUTE);
+        let push_constant = PushConstant::new(PushConst::default(), ShaderStageFlags::COMPUTE);
 
         //Setup the compute pipeline.
         let pipe_layout = PipelineLayout::new(
             device.clone(),
             vec![*data[0].descriptor_set.layout()],
-            vec![*camera_const.range()],
+            vec![*push_constant.range()],
         )
         .unwrap();
 
@@ -126,7 +134,7 @@ impl ImagePass {
             data,
             pipeline,
             shader_loader: jit,
-            camera: camera_const,
+            push_constant,
         }
     }
 
@@ -192,7 +200,7 @@ impl ImagePass {
             .expect("Failed to bind primary pipeline");
         //upload current camera
         command_buffer
-            .cmd_push_constants(self.pipeline.layout(), &self.camera)
+            .cmd_push_constants(self.pipeline.layout(), &self.push_constant)
             .unwrap();
         command_buffer
             .cmd_dispatch(dispatch_size(&self.data[slot_index].target_image))

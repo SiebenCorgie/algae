@@ -1,16 +1,19 @@
-use std::{error::Error, fs::File, io::{Read, Write}, path::Path};
+use std::{
+    error::Error,
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+};
 
 use algae::{
-    glam::Vec2,
-    operations::{arithmetic::Subtraction, vector::Length, native::Constant}, Operation,
-    spv_fi::{SpvFi, SpvError}, DataId, Serializer
+    spv_fi::{SpvError, SpvFi},
+    DataId, Operation, Serializer,
 };
 
 use rspirv::{
     binary::{Assemble, Disassemble, Parser},
-    dr::{Loader, Builder}, spirv::{Word, self},
+    dr::Loader,
 };
-
 
 #[derive(Debug)]
 pub enum JitError {
@@ -68,15 +71,15 @@ impl AlgaeJit {
         parser.parse()?;
 
         //load the spirv module and parse it
-        let module = loader.module();        
-        
+        let module = loader.module();
+
         Ok(AlgaeJit {
             injector: Injector::new(module, "test_shader::injector")?,
             binary: Vec::with_capacity(Self::BINARY_CAPACITY),
         })
     }
 
-    pub fn injector(&mut self) -> &mut Injector{
+    pub fn injector(&mut self) -> &mut Injector {
         &mut self.injector
     }
 
@@ -88,33 +91,34 @@ impl AlgaeJit {
     }
 }
 
-fn diff(s0: &str, s1: &str){
-
+fn diff(s0: &str, s1: &str) {
     let mut f0 = std::fs::File::create("f0.txt").unwrap();
     f0.write_all(s0.as_bytes()).unwrap();
-    
+
     let mut f0 = std::fs::File::create("f1.txt").unwrap();
     f0.write_all(s1.as_bytes()).unwrap();
-    
+
     let output = std::process::Command::new("diff")
         .arg("--color")
         .arg("-y")
         .arg("f0.txt")
         .arg("f1.txt")
-        .output().unwrap();
+        .output()
+        .unwrap();
 
     //remove
     std::fs::remove_file("f0.txt").unwrap();
     std::fs::remove_file("f1.txt").unwrap();
 
-
-    println!("DIFF: \n\n {} \n\n", core::str::from_utf8(&output.stdout).unwrap());
-    
+    println!(
+        "DIFF: \n\n {} \n\n",
+        core::str::from_utf8(&output.stdout).unwrap()
+    );
 }
 
 ///Keeps track where in `src` injection points are located
 #[derive(Clone)]
-pub struct Injector{
+pub struct Injector {
     ///The most up to date module of this function
     module: rspirv::dr::Module,
 
@@ -124,46 +128,45 @@ pub struct Injector{
     fid: usize,
 }
 
-impl Injector{
+impl Injector {
     ///Tries to inject a function with the given input/output signature
-    pub fn inject<I, O>(&mut self, input: I, function: &mut dyn Operation<Input = I, Output = DataId<O>>){
-
-        
-
+    pub fn inject<I, O>(
+        &mut self,
+        input: I,
+        function: &mut dyn Operation<Input = I, Output = DataId<O>>,
+    ) {
         let mut working_builder = rspirv::dr::Builder::new_from_module(self.module.clone());
-        
+
         //move to inject function. This should not fail, since the fi would otherwise not exist.
-        working_builder.select_function(Some(self.fid)).expect("Failed to select inject function!");
-        
+        working_builder
+            .select_function(Some(self.fid))
+            .expect("Failed to select inject function!");
+
         //Start out by creating a new blog in our builder.
         let new_block_id = working_builder.begin_block(None).unwrap();
         let inject_block = working_builder.selected_block().unwrap();
 
-
         //Now setup the serializer and start serializing the function
-        let mut serializer = Serializer::new(
-         &mut working_builder,
-         &self.interface,
-        );
-        
+        let mut serializer = Serializer::new(&mut working_builder, &self.interface);
+
         //Serialize into function
         let return_value = function.serialize(&mut serializer, input);
 
         //Append the return value
         let ret = serializer.builder_mut().ret_value(return_value.id).unwrap();
 
-
-        
-        println!("Writing to block {}, id={}", inject_block, new_block_id);
+        #[cfg(feature = "logging")]
+        log::info!("Writing to block {}, id={}", inject_block, new_block_id);
 
         //We do now is inserting our payload as a second block into the function, afterwards we remove the original first block
         let function_index = working_builder.selected_function().unwrap();
-        
+
         //Swap out blocks
         let mut new_module = working_builder.module();
-        let injected_block = new_module.functions[function_index].blocks.remove(inject_block);
+        let injected_block = new_module.functions[function_index]
+            .blocks
+            .remove(inject_block);
         new_module.functions[function_index].blocks[0] = injected_block;
-        
 
         let after_injection_module = new_module.clone().disassemble();
 
@@ -172,32 +175,41 @@ impl Injector{
         self.module = new_module;
     }
 
-    pub fn new(module: rspirv::dr::Module, inject_function_name: &str) -> Result<Self, JitError>{
+    pub fn new(module: rspirv::dr::Module, inject_function_name: &str) -> Result<Self, JitError> {
+        #[cfg(feature = "logging")]
+        {
+            let original_module = module.disassemble();
+            log::info!("{}", original_module);
+        }
 
-        
-        let original_module = module.disassemble();
-
-        println!("{}", original_module);
-        
         //Create a builder to search and analyse the function interface.
         let mut builder = rspirv::dr::Builder::new_from_module(module.clone());
 
         //Pase the functions interface
-        let fi = SpvFi::new(&module, &mut builder, inject_function_name).map_err(|e| JitError::FailedToParseEntrypoint(e))?;
-        
+        let fi = SpvFi::new(&module, &mut builder, inject_function_name)
+            .map_err(|e| JitError::FailedToParseEntrypoint(e))?;
+
         //Move the builder to the inject function
-        if let Err(e) = builder.select_function_by_name(inject_function_name){
-            println!("spverror: {e}");
-            return Err(JitError::CouldNotFindFunction(String::from(inject_function_name)));
+        if let Err(_e) = builder.select_function_by_name(inject_function_name) {
+            #[cfg(feature = "logging")]
+            log::error!(
+                "Could not select function \"{}\" with error: {}",
+                inject_function_name,
+                _e
+            );
+
+            return Err(JitError::CouldNotFindFunction(String::from(
+                inject_function_name,
+            )));
         }
-        
+
         //now safe the functions id
         let fid = builder.selected_function().unwrap();
-               
-        Ok(Injector{
+
+        Ok(Injector {
             module,
             interface: fi,
-            fid
+            fid,
         })
     }
 }
