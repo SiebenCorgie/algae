@@ -14,7 +14,7 @@ validation = []
 
 [dependencies]
 algae = {path = "../algae", features = ["logging"]}
-algae_jit = {path = "../algae_jit"}
+algae_jit = {path = "../algae_jit", features = ["logging"]}
 
 #vulkan wrapper
 marp = {git = "https://gitlab.com/tendsinmende/marp.git"}

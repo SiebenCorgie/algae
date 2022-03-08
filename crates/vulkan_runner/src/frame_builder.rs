@@ -15,7 +15,9 @@ use marp::{
 use marp_surface_winit::winit::window::Window;
 
 use crate::{
-    pass_image_to_swapchain::ImgToSwapchain, pass_renderer::ImagePass, vkcontext::MarpContext,
+    pass_image_to_swapchain::ImgToSwapchain,
+    pass_renderer::{self, ImagePass},
+    vkcontext::MarpContext,
 };
 
 pub const LOCAL_SIZE: [u32; 3] = [8, 8, 1];
@@ -77,6 +79,13 @@ impl FrameBuilder {
             image_pass,
             frames: frame_infos,
         }
+    }
+
+    pub fn on_push_const<F>(&mut self, f: F)
+    where
+        F: Fn(&mut pass_renderer::PushConst),
+    {
+        f(self.image_pass.push_constant.get_content_mut())
     }
 
     fn check_resize(&mut self, ctx: &mut MarpContext, window: &Window) {
