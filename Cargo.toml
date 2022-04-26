@@ -4,6 +4,7 @@ members = [
 "crates/algae_jit",
 "crates/algae_inject",
 "crates/algae_gpu",
+"crates/algae_grammar",
 "crates/vulkan_runner",
 "crates/test_shader"
 ]

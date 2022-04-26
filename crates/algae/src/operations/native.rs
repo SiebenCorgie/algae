@@ -1,19 +1,30 @@
 //! Most basic operations, like constants or variable loading, and simple ordering of operations.
 
-use std::marker::PhantomData;
+use std::{any::Any, marker::PhantomData};
 
 use crate::{spv_fi::IntoSpvType, BoxOperation, DataId, Operation, Serializer};
 
-pub struct Constant<T> {
+#[derive(Clone, Copy, Debug)]
+pub struct Constant<I, T> {
+    pub inty: PhantomData<I>,
     pub value: T,
 }
 
+impl<I, T: 'static> Constant<I, T>{
+    pub fn new(value: T) -> Self{
+        Constant{
+            value,
+            inty: PhantomData,
+        }
+    }
+}
+
 ///Implements Constant for any type that can be also expressed as a SpirvType
-impl<T> Operation for Constant<T>
+impl<I, T> Operation for Constant<I, T>
 where
     T: IntoSpvType,
 {
-    type Input = ();
+    type Input = I;
     type Output = DataId<T>;
 
     fn serialize(&mut self, serializer: &mut Serializer, _input: Self::Input) -> Self::Output {
@@ -23,7 +34,7 @@ where
 
 ///Data id implements Operation a well, which allows us to use formerly calculated values as input
 ///for otherwise nested operations.
-impl<T: Clone> Operation for DataId<T> {
+impl<T: Clone> Operation for DataId<T>{
     type Input = ();
     type Output = DataId<T>;
 
@@ -78,48 +89,34 @@ impl<I, NI, O> Operation for MapInput<I, NI, O> {
 }
 
 ///Runtime setable variable identified by the given name. Type safety is checked at runtime.
-pub struct Variable<T: Sized + 'static> {
+pub struct Variable<I, T: Sized + 'static> {
+    pub inty: PhantomData<I>,
     ///Default value of the variable if it is not set at runtime.
-    pub default_value: T,
+    pub default_value: Constant<I, T>,
     ///Identifying variable name.
     pub name: String,
 }
 
-impl<T: Sized + 'static> Variable<T> {
+impl<I, T: Sized + 'static> Variable<I, T> {
     pub fn new(name: &str, default_value: T) -> Self {
         Variable {
-            default_value,
+            inty: PhantomData,
+            default_value: Constant{value: default_value, inty: PhantomData},
             name: String::from(name),
         }
     }
 }
 
-impl<T> Operation for Variable<T>
+impl<I, T> Operation for Variable<I, T>
 where
+    I: Any + 'static,
     T: IntoSpvType + Clone + 'static,
-    Constant<T>: Operation<Input = (), Output = DataId<T>>,
+    Constant<I, T>: Operation<Input = I, Output = DataId<T>>,
 {
-    type Input = ();
+    type Input = I;
     type Output = DataId<T>;
 
     fn serialize(&mut self, serializer: &mut Serializer, _input: Self::Input) -> Self::Output {
-        serializer.get_variable::<T>(&self.name, self.default_value.clone())
-    }
-}
-
-///Links two operation trees. First serializes `first` with `I` as input, then serializes `second` with `first`'s output (`FO`) as input.
-///Allows chaining two operation trees.
-pub struct Link<I, FO, O> {
-    pub first: BoxOperation<I, FO>,
-    pub second: BoxOperation<DataId<FO>, O>,
-}
-
-impl<I, FO, O> Operation for Link<I, FO, O> {
-    type Input = I;
-    type Output = DataId<O>;
-
-    fn serialize(&mut self, serializer: &mut Serializer, input: Self::Input) -> Self::Output {
-        let sa = self.first.serialize(serializer, input);
-        self.second.serialize(serializer, sa)
+        serializer.get_variable::<T>(&self.name, self.default_value.value.clone())
     }
 }

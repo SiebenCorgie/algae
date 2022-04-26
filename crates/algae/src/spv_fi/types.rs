@@ -11,6 +11,7 @@ use crate::{DataId, Serializer};
 
 use super::SpvError;
 
+
 ///Runtime representation of a spirv type. Can either be parsed from an instruction,
 ///or derived from a rust type at runtime via the [IntoSpvType](IntoSpvType) trait.
 #[derive(Clone, Debug)]
