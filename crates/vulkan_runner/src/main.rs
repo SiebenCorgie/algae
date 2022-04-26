@@ -3,8 +3,8 @@
 use algae::{
     glam::Vec2,
     operations::{
-        Abs, Addition, Constant, Length, Link, MapInput, Max, Min, ReturnInput, Subtraction,
-        Variable, VecSelectElement,
+        Abs, Addition, Constant, Length, MapInput, Max, Min, Subtraction,
+        Variable, VecSelectElement, OrderedOperations, AccessResult,
     },
 };
 use algae_jit::AlgaeJit;
@@ -62,6 +62,47 @@ fn main() {
     }
     */
 
+    
+    let mut bfunc: OrderedOperations<(), _> = OrderedOperations::new(
+        "d", Box::new(Subtraction {
+            minuent: Box::new(Abs {
+                inner: Box::new(Variable::new("coord", Vec2::ZERO)),
+            }), //abs(p)
+            subtrahend: Box::new(Constant::new(Vec2::new(50.0, 60.0))), //extend b
+        })        
+    ).push(
+        "result", Box::new(Addition {
+            a: Box::new(Length {
+                inner: Box::new(Max {
+                    a: Box::new(AccessResult::<Vec2>::new("d")),
+                    b: Box::new(Constant::new(Vec2::ZERO))
+                }),
+            }),
+            b: Box::new(Min {
+                a: Box::new(Max {
+                    a: Box::new(VecSelectElement::<Vec2, _> {
+                        element: 0,
+                        inner: Box::new(AccessResult::<Vec2>::new("d")),
+                    }),
+                    b: Box::new(VecSelectElement::<Vec2, _> {
+                        element: 1,
+                        inner: Box::new(AccessResult::<Vec2>::new("d")),
+                    }),
+                }),
+                b: Box::new(Constant::new(0.0f32)),
+            }),
+        })
+    );
+     
+
+    let mut op: OrderedOperations<(), _> = algae_grammar::rexpr!{
+        let d: Vec2 = Sub(Abs(Add(Var(coord, Vec2(0.0f32, 0.0f32)), Var(offset, Vec2(0.0f32, 0.0f32)))),  Const(Vec2(200.0f32, 50.0f32)));
+        let res: f32 = Add(Length(Max(d, Const(Vec2(0.0, 0.0)))),  Min(Max(VecSelectElement(d, 0), VecSelectElement(d, 1)), Const(0.0f32)));
+	
+        return res;
+    };
+    
+    /*
     let mut box_function = Link {
         //Calculate
         first: Box::new(Subtraction {
@@ -97,8 +138,8 @@ fn main() {
             }),
         }),
     };
-
-    compiler.injector().inject((), &mut box_function);
+*/
+    compiler.injector().inject((), &mut op);
 
     let mut fb = FrameBuilder::new(&ctx, compiler);
 

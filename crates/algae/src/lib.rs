@@ -45,7 +45,7 @@ impl<'a, 'b> Serializer<'a, 'b> {
     /// or nothing.
     pub fn get_variable<T: IntoSpvType>(&mut self, name: &str, default_value: T) -> DataId<T>
     where
-        Constant<T>: Operation<Input = (), Output = DataId<T>>,
+        Constant<(), T>: Operation<Input = (), Output = DataId<T>>,
     {
         let shash = simple_hash(name);
         let spvtype = T::into_spv_type();
@@ -69,6 +69,7 @@ impl<'a, 'b> Serializer<'a, 'b> {
             );
 
             let mut con = Constant {
+                inty: PhantomData,
                 value: default_value,
             };
             con.serialize(self, ())
